@@ -263,7 +263,9 @@ def process_sheets(urls_list=None):
             hours = int(row.get('hours', 30)) if pd.notna(row.get('hours')) and str(row.get('hours')).isdigit() else 30
             credits_val = float(row.get('credits', round(hours / 30, 1))) if pd.notna(row.get('credits')) else round(hours / 30, 1)
 
-            course_id = re.sub(r'[^a-zA-Z0-9-]', '_', course_title.lower())[:30]
+            course_id = f"course_{row_year}_{idx+1}" if not course_title else f"course_{row_year}_{re.sub(r'[^a-zA-Z0-9]', '', course_title)[:20]}"
+            if len(course_id.replace('_', '')) == 0 or course_id.endswith('_'):
+                course_id = f"course_{row_year}_{idx+1}"
 
             if course_id not in consolidated_courses:
                 consolidated_courses[course_id] = {
