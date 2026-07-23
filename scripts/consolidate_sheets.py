@@ -419,11 +419,34 @@ def process_sheets(urls_list=None):
 
         # issueDate fallback from tab name (e.g. '072025' → '01.07.2025')
         tab_date = ''
+        tab_month = 0
         mm_match = re.search(r'(\d{2})(20\d{2})', tab)
         if mm_match:
-            mm, yyyy = int(mm_match.group(1)), int(mm_match.group(2))
-            if 1 <= mm <= 12:
-                tab_date = f'01.{mm:02d}.{yyyy}'
+            tab_month, yyyy2 = int(mm_match.group(1)), int(mm_match.group(2))
+            if 1 <= tab_month <= 12:
+                tab_date = f'01.{tab_month:02d}.{yyyy2}'
+
+        # Institution type from tab name (e.g. 'Дошкільна', 'Середня', 'Вища')
+        INSTITUTION_MAP = {
+            'дошкільна': 'doshkilna',
+            'середня':   'serednia',
+            'вища':      'vyshcha',
+            'позашкільна': 'pozashkilna',
+            'проф':      'profesiina',
+            'спеціальна':'spetsialna',
+        }
+        tab_low = tab.lower()
+        institution_type = ''
+        institution_label = ''
+        for ukr, slug in INSTITUTION_MAP.items():
+            if ukr in tab_low:
+                institution_type = slug
+                institution_label = ukr.capitalize()
+                break
+
+        # Tab-level unique key = year_month_institution (used for courseId)
+        tab_slug = re.sub(r'[^a-zA-ZА-ЯҐЄІЇа-яґєії0-9]', '_', tab).strip('_')[:30]
+        tab_course_key = f"{tab_year}_{tab_month:02d}_{institution_type or tab_slug}"
 
         # Get column mapping (fuzzy + regex + saved cache)
         col_map = map_columns(df, source, saved_mappings)
@@ -454,6 +477,8 @@ def process_sheets(urls_list=None):
             continue
 
         course_title = f"Курс підвищення кваліфікації ({tab_year})"
+        if institution_label:
+            course_title = f"Курс підвищення кваліфікації для закладів {institution_label.lower()} освіти"
         ok_rows = 0
 
         for _, row in df.iterrows():
@@ -485,15 +510,30 @@ def process_sheets(urls_list=None):
 
             cred = round(hrs / 30, 1)
 
-            # Stable course_id: year + sanitized title (same title = same course)
-            cid_base = re.sub(r'[^a-zA-ZА-ЯҐЄІЇа-яґєії0-9]', '', ctitle)[:20]
-            cid = f"course_{row_year}_{cid_base}" if cid_base else f"course_{row_year}_{tab}"
+            # Stable course_id: tab-level key (year+month+institutionType) takes priority
+            # This ensures each tab = separate course even if courseTitle is identical
+            cid_from_tab  = f"course_{tab_course_key}"
+            cid_base_title = re.sub(r'[^a-zA-ZА-ЯҐЄІЇа-яґєії0-9]', '', ctitle)[:20]
+
+            # Use tab key if we have institution/session info, else fall back to title
+            if institution_type or tab_month:
+                cid = cid_from_tab
+            else:
+                cid = f"course_{row_year}_{cid_base_title}" if cid_base_title else cid_from_tab
 
             if cid not in all_courses:
                 all_courses[cid] = {
-                    "id": cid, "name": ctitle, "topic": topic,
-                    "year": row_year, "hours": hrs, "credits": cred,
-                    "period": idate or str(row_year), "orderNo": f"Реєстр {row_year}"
+                    "id":              cid,
+                    "name":            ctitle,
+                    "topic":           topic,
+                    "year":            row_year,
+                    "month":           tab_month or 0,
+                    "session":         tab_date or str(row_year),
+                    "institutionType": institution_label,
+                    "hours":           hrs,
+                    "credits":         cred,
+                    "period":          tab_date or str(row_year),
+                    "orderNo":         f"Реєстр {row_year}"
                 }
 
             all_certs.append({
@@ -502,6 +542,8 @@ def process_sheets(urls_list=None):
                 "participantNameClean":name.lower(),
                 "courseId":            cid,
                 "courseTitle":         ctitle,
+                "institutionType":     institution_label,
+                "session":             tab_date or str(row_year),
                 "topic":               topic,
                 "year":                row_year,
                 "issueDate":           idate,
