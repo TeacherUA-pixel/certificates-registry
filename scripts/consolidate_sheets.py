@@ -2,19 +2,23 @@ import os
 import re
 import json
 import glob
+import urllib.parse
+import urllib.request
 import pandas as pd
 from datetime import datetime
 
-# Directory for raw exported sheets (CSV or XLSX)
-RAW_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'output')
+# Directory paths
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RAW_DATA_DIR = os.path.join(BASE_DIR, 'data')
+OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+URLS_FILE = os.path.join(BASE_DIR, 'sheets_urls.txt')
 
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Synonym dictionary for column matching across different years/formats
 COLUMN_SYNONYMS = {
-    'name': ['піб', 'п.і.б.', 'пiб', 'учасник', 'випускник', 'слухач', 'фіо', 'фiо', 'full name', 'name', 'прізвище ім'я'],
+    'name': ['піб', 'п.і.б.', 'пiб', 'учасник', 'випускник', 'слухач', 'фіо', 'фiо', 'full name', 'name', 'прізвище ім\'я'],
     'certCode': ['сертифікат', 'номер сертифіката', 'код сертифіката', 'номер', 'код', '№ сертифіката', 'сертифікат №', 'cert_code', 'code'],
     'issueDate': ['дата', 'дата видачі', 'дата видачи', 'date', 'issue_date'],
     'driveUrl': ['посилання', 'посилання на сертифікат', 'сертифікат (pdf)', 'drive', 'link', 'url', 'pdf'],
@@ -36,17 +40,13 @@ def identify_column(col_name):
 def clean_name(name_str):
     if not isinstance(name_str, str) or pd.isna(name_str):
         return ""
-    # Replace multiple spaces, strip
     cleaned = re.sub(r'\s+', ' ', str(name_str)).strip()
-    # Capitalize proper name
     return cleaned.title()
 
 def clean_date(date_val):
     if pd.isna(date_val) or not date_val:
         return ""
     date_str = str(date_val).strip()
-    
-    # Try parsing common formats
     for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y', '%d.%m.%y', '%Y.%m.%d'):
         try:
             dt = datetime.strptime(date_str.split(' ')[0], fmt)
@@ -55,33 +55,73 @@ def clean_date(date_val):
             pass
     return date_str
 
-def process_sheets():
-    print("🚀 Розпочинаємо процес обробки та консолідації Google Таблиць...")
+def convert_gsheet_url_to_csv(url):
+    """
+    Перетворює звичайне посилання Google Таблиці у посилання на завантаження CSV.
+    """
+    sheet_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+    if not sheet_id_match:
+        return None
+    sheet_id = sheet_id_match.group(1)
     
+    gid_match = re.search(r'[#&?]gid=([0-9]+)', url)
+    gid = gid_match.group(1) if gid_match else '0'
+
+    return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+
+def process_sheets(urls_list=None):
+    print("🚀 Розпочинаємо процес обробки та консолідації Google Таблиць...")
+
+    data_frames = []
+
+    # 1. Завантаження за посиланнями, якщо вони надані
+    target_urls = urls_list or []
+    if os.path.exists(URLS_FILE):
+        with open(URLS_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    target_urls.append(line)
+
+    for url in target_urls:
+        csv_url = convert_gsheet_url_to_csv(url)
+        if csv_url:
+            print(f"🌐 Завантаження Google Таблиці за посиланням: {url[:60]}...")
+            try:
+                df = pd.read_csv(csv_url)
+                data_frames.append((f"GoogleSheet_{len(data_frames)+1}", df))
+                print(f"   ✓ Успішно завантажено {len(df)} рядків.")
+            except Exception as e:
+                print(f"   ❌ Не вдалося завантажити Google Таблицю. Перевірте, чи доступ надано 'Усім, у кого є посилання'. Помилка: {e}")
+
+    # 2. Локальні файли з папки data/
     raw_files = glob.glob(os.path.join(RAW_DATA_DIR, '*.csv')) + \
                 glob.glob(os.path.join(RAW_DATA_DIR, '*.xlsx')) + \
                 glob.glob(os.path.join(RAW_DATA_DIR, '*.xls'))
-    
-    if not raw_files:
-        print(f"⚠️ Папка '{RAW_DATA_DIR}' порожня.")
-        print("Покладіть файли Excel або CSV з Google Таблиць у папку 'data' та запустіть скрипт знову.")
-        return
-
-    consolidated_certs = []
-    consolidated_courses = {}
 
     for file_path in raw_files:
-        print(f"📄 Обробка файлу: {os.path.basename(file_path)}")
+        filename = os.path.basename(file_path)
+        print(f"📄 Читання локального файлу: {filename}")
         try:
             if file_path.endswith('.csv'):
                 df = pd.read_csv(file_path)
             else:
                 df = pd.read_excel(file_path)
+            data_frames.append((os.path.splitext(filename)[0], df))
         except Exception as e:
-            print(f"❌ Помилка читання файлу {file_path}: {e}")
-            continue
+            print(f"   ❌ Помилка читання файлу {file_path}: {e}")
 
-        # Map column names
+    if not data_frames:
+        print(f"\n⚠️ Не знайдено жодного джерела даних!")
+        print("Ви можете:")
+        print("1. Вставити посилання на Google Таблиці у файл `sheets_urls.txt` (або передати в чат).")
+        print("2. Або покласти локальні CSV / Excel файли у папку `data/`.")
+        return
+
+    consolidated_certs = []
+    consolidated_courses = {}
+
+    for source_name, df in data_frames:
         col_mapping = {}
         for col in df.columns:
             identified = identify_column(col)
@@ -89,19 +129,18 @@ def process_sheets():
                 col_mapping[col] = identified
 
         df = df.rename(columns=col_mapping)
-        
-        # Check required fields
+
         if 'name' not in df.columns or 'certCode' not in df.columns:
-            print(f"⚠️ Пропущено {os.path.basename(file_path)}: не знайдено обов'язкових колонок ПІБ або Номер Сертифіката")
+            print(f"⚠️ Пропущено джерело '{source_name}': не знайдено колонок ПІБ чи Номер Сертифіката")
             continue
 
-        default_course_title = os.path.splitext(os.path.basename(file_path))[0]
+        default_course_title = source_name
         default_year = datetime.now().year
 
         for idx, row in df.iterrows():
             name = clean_name(row.get('name', ''))
             cert_code = str(row.get('certCode', '')).strip()
-            
+
             if not name or not cert_code or cert_code.lower() == 'nan':
                 continue
 
@@ -139,7 +178,7 @@ def process_sheets():
                 "driveUrl": drive_url
             })
 
-    # Save to JSON
+    # Збереження результату
     courses_out = os.path.join(OUTPUT_DIR, 'courses.json')
     certs_out = os.path.join(OUTPUT_DIR, 'certificates.json')
 
@@ -149,10 +188,12 @@ def process_sheets():
     with open(certs_out, 'w', encoding='utf-8') as f:
         json.dump(consolidated_certs, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ Успішно консолідовано:")
+    print(f"\n✅ Успішно оброблено та консолідовано:")
     print(f"   • Курсів: {len(consolidated_courses)}")
     print(f"   • Сертифікатів: {len(consolidated_certs)}")
-    print(f"📁 Файли збережено в: {os.path.abspath(OUTPUT_DIR)}")
+    print(f"📁 Збережено у: {os.path.abspath(OUTPUT_DIR)}")
 
 if __name__ == '__main__':
-    process_sheets()
+    import sys
+    urls = sys.argv[1:] if len(sys.argv) > 1 else None
+    process_sheets(urls)
