@@ -61,6 +61,15 @@ SYNONYMS = {
     ],
     'year': [
         'рік', 'рік видачі', 'year', 'навчальний рік', 'рiк'
+    ],
+    'lastName': [
+        'прізвище', 'last name', 'surname', 'фамілія', 'фамилия'
+    ],
+    'firstName': [
+        "ім'я", 'імя', 'first name', 'имя'
+    ],
+    'middleName': [
+        'по батькові', 'по батькови', 'middle name', 'отчество', 'по-батькові'
     ]
 }
 
@@ -399,13 +408,37 @@ def process_sheets(urls_list=None):
     for item in data_frames:
         source, tab, df = item['source'], item['tab'], item['df']
 
-        # Year from tab name
+        # Year from tab name — supports '2025', '072025' (MMYYYY), '2025-07'
         ym = re.search(r'\b(20\d{2})\b', tab)
-        tab_year = int(ym.group(1)) if ym else datetime.now().year
+        if not ym:
+            # MMYYYY or MMYYYY embedded in string e.g. '072025'
+            ym2 = re.search(r'\d{2}(20\d{2})', tab)
+            tab_year = int(ym2.group(1)) if ym2 else datetime.now().year
+        else:
+            tab_year = int(ym.group(1))
+
+        # issueDate fallback from tab name (e.g. '072025' → '01.07.2025')
+        tab_date = ''
+        mm_match = re.search(r'(\d{2})(20\d{2})', tab)
+        if mm_match:
+            mm, yyyy = int(mm_match.group(1)), int(mm_match.group(2))
+            if 1 <= mm <= 12:
+                tab_date = f'01.{mm:02d}.{yyyy}'
 
         # Get column mapping (fuzzy + regex + saved cache)
         col_map = map_columns(df, source, saved_mappings)
         df = df.rename(columns=col_map)
+
+        # Merge split name columns if full 'name' column is absent
+        if 'name' not in df.columns:
+            has_last  = 'lastName'   in df.columns
+            has_first = 'firstName'  in df.columns
+            has_mid   = 'middleName' in df.columns
+            if has_last and has_first:
+                parts = [df['lastName'].fillna(''), df['firstName'].fillna('')]
+                if has_mid: parts.append(df['middleName'].fillna(''))
+                df['name'] = parts[0].str.cat(parts[1:], sep=' ').str.strip()
+                print(f"      🔗 Об'єднано колонки Прізвище+Ім'я+Поб в 'name'")
 
         has_name = 'name' in df.columns
         has_code = 'certCode' in df.columns
@@ -441,6 +474,7 @@ def process_sheets(urls_list=None):
             if topic.lower() in ('nan', 'none', ''): topic = 'Загальні програми'
 
             idate  = clean_date(_scalar(row.get('issueDate', '')))
+            if not idate: idate = tab_date  # fallback: derive from tab name
             durl   = str(_scalar(row.get('driveUrl', '')) or '').strip()
             if durl.lower() in ('nan', 'none'): durl = ''
 
