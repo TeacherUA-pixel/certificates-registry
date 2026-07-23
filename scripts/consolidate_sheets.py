@@ -2,10 +2,17 @@ import os
 import re
 import json
 import glob
+import sys
 import urllib.parse
 import urllib.request
 import pandas as pd
 from datetime import datetime
+
+# Set stdout/stderr encoding to UTF-8 for Windows compatibility
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
 
 # Directory paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -219,6 +226,17 @@ def process_sheets(urls_list=None):
                 col_mapping[col] = identified
 
         df = df.rename(columns=col_mapping)
+
+        # Fallback detection by data patterns if name or certCode are missing
+        if 'name' not in df.columns or 'certCode' not in df.columns:
+            for col in df.columns:
+                sample_vals = [str(v).strip() for v in df[col].dropna().head(10)]
+                # Check for certCode pattern (e.g. ЦІ-Б-1460, CERT-123, 1460, etc.)
+                if 'certCode' not in df.columns and any(re.search(r'[А-ЯA-Z0-9]{1,5}-[0-9]{3,7}', v, re.IGNORECASE) for v in sample_vals):
+                    df = df.rename(columns={col: 'certCode'})
+                # Check for name pattern (e.g. 2 or 3 Ukrainian/Roman words)
+                elif 'name' not in df.columns and any(re.match(r'^[А-ЯІЇЄA-Z][а-яіїєa-z\']+\s+[А-ЯІЇЄA-Z][а-яіїєa-z\']+', v) for v in sample_vals):
+                    df = df.rename(columns={col: 'name'})
 
         if 'name' not in df.columns or 'certCode' not in df.columns:
             print(f"⚠️ Пропущено аркуш '{tab_name}': не вдалося розпізнати стовпчики ПІБ та Номер Сертифіката")
