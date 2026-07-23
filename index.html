@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Реєстр сертифікатів підвищення кваліфікації | Google Style 3D Scroll Experience</title>
+  <!-- Google Fonts: Roboto & Material Symbols -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+  <!-- Firebase Web SDK v10 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 💡 Вставте ваші конфігураційні дані Firebase тут (з Firebase Console -> Project Settings)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
+    };
+
+    window.FirebaseDB = null;
+
+    if (firebaseConfig.projectId !== "YOUR_PROJECT_ID") {
+      try {
+        const app = initializeApp(firebaseConfig);
+        window.FirebaseDB = getFirestore(app);
+        window.FirebaseOps = { collection, getDocs, doc, getDoc, query, where };
+        console.log("🔥 Успішно підключено до Firebase Firestore!");
+      } catch (e) {
+        console.warn("⚠️ Помилка ініціалізації Firebase, переходимо на локальні дані:", e);
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --g-blue: #1a73e8;
+      --g-blue-dark: #1557b0;
+      --g-blue-glow: rgba(26, 115, 232, 0.25);
+      --g-green: #1e8e3e;
+      --g-green-light: #e6f4ea;
+      --g-yellow: #f9ab00;
+      --g-red: #d93025;
+      --bg-dark: #0f1117;
+      --bg-card: rgba(255, 255, 255, 0.95);
+      --glass-bg: rgba(255, 255, 255, 0.85);
+      --glass-border: rgba(218, 220, 224, 0.6);
+      --text-main: #202124;
+      --text-sub: #5f6368;
+      --radius-s: 10px;
+      --radius-m: 16px;
+      --radius-l: 24px;
+      --radius-pill: 100px;
+      --shadow-flat: 0 1px 3px rgba(60,64,67,0.12), 0 1px 2px rgba(60,64,67,0.24);
+      --shadow-hover: 0 10px 25px -5px rgba(26,115,232,0.15), 0 8px 10px -6px rgba(0,0,0,0.06);
+      --font-heading: 'Outfit', sans-serif;
+      --font-body: 'Roboto', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: #f8f9fa;
+      color: var(--text-main);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Fixed Background Canvas for 3D Fly-Through World */
+    #world-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Floating Navigation Header */
+    .navbar {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: 1100px;
+      z-index: 100;
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-pill);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-main);
+      text-decoration: none;
+    }
+
+    .google-dots {
+      display: flex;
+      gap: 4px;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-b { background: var(--g-blue); }
+    .dot-r { background: var(--g-red); }
+    .dot-y { background: var(--g-yellow); }
+    .dot-g { background: var(--g-green); }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-verify-nav {
+      background: var(--g-blue);
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: var(--radius-pill);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-verify-nav:hover {
+      background: var(--g-blue-dark);
+      box-shadow: 0 4px 12px var(--g-blue-glow);
+    }
+
+    /* Scroll Containers */
+    .scroll-container {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Scene 1: Hero World */
+    .scene-hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 120px 20px 60px;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: var(--radius-pill);
+      background: rgba(26, 115, 232, 0.1);
+      color: var(--g-blue);
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(26, 115, 232, 0.2);
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-main);
+      max-width: 800px;
+      margin-bottom: 20px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--g-blue), #8ab4f8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 18px;
+      color: var(--text-sub);
+      max-width: 650px;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: var(--g-blue);
+      color: #ffffff;
+      padding: 14px 28px;
+      border-radius: var(--radius-pill);
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px var(--g-blue-glow);
+    }
+
+    .btn-outline {
+      background: #ffffff;
+      color: var(--text-main);
+      border: 1px solid #dadce0;
+      padding: 14px 28px;
+      border-radius: var(--radius-pill);
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-outline:hover {
+      background: #f1f3f4;
+      border-color: #bdc1c6;
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-sub);
+      animation: float 2s infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(8px); }
+    }
+
+    /* Scene 2: Interactive Stats World */
+    .scene-stats {
+      padding: 80px 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .stats-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .stat-box-3d {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(218, 220, 224, 0.8);
+      border-radius: var(--radius-l);
+      padding: 32px;
+      text-align: center;
+      transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+      box-shadow: var(--shadow-flat);
+    }
+
+    .stat-box-3d:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--g-blue);
+    }
+
+    .stat-number {
+      font-family: var(--font-heading);
+      font-size: 44px;
+      font-weight: 700;
+      color: var(--g-blue);
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 15px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
+    /* Scene 3: Registry Workspace */
+    .scene-registry {
+      padding: 60px 20px 100px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-family: var(--font-heading);
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .section-desc {
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 16px;
+      margin-bottom: 36px;
+    }
+
+    .filter-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-l);
+      padding: 24px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-flat);
+    }
+
+    .search-wrapper {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-sub);
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 16px 20px 16px 54px;
+      font-size: 16px;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-m);
+      outline: none;
+      transition: all 0.2s;
+      background: #ffffff;
+      font-family: inherit;
+    }
+
+    .search-input:focus {
+      border-color: var(--g-blue);
+      box-shadow: 0 0 0 3px var(--g-blue-glow);
+    }
+
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .chip-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-sub);
+    }
+
+    .custom-select {
+      padding: 10px 36px 10px 16px;
+      font-size: 14px;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-pill);
+      background: #ffffff;
+      color: var(--text-main);
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%235f6368'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 20px;
+    }
+
+    .btn-reset {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--g-blue);
+      font-weight: 500;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+    }
+
+    .btn-reset:hover {
+      background: var(--g-blue-light);
+    }
+
+    .courses-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .course-card {
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-m);
+      overflow: hidden;
+      transition: all 0.25s;
+    }
+
+    .course-card:hover {
+      border-color: var(--g-blue);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .course-header {
+      padding: 24px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      user-select: none;
+    }
+
+    .course-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      background: #f1f3f4;
+      color: var(--text-sub);
+    }
+
+    .badge-year { background: rgba(26, 115, 232, 0.1); color: var(--g-blue); }
+    .badge-hours { background: rgba(30, 142, 62, 0.1); color: var(--g-green); }
+
+    .course-title {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .course-details-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      font-size: 14px;
+      color: var(--text-sub);
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .arrow-icon {
+      transition: transform 0.3s;
+      color: var(--text-sub);
+    }
+
+    .course-card.active .arrow-icon {
+      transform: rotate(180deg);
+    }
+
+    .course-body {
+      display: none;
+      padding: 24px;
+      border-top: 1px solid #e8eaed;
+      background: #fafafa;
+    }
+
+    .course-card.active .course-body {
+      display: block;
+    }
+
+    .participants-table-box {
+      overflow-x: auto;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-s);
+      background: #ffffff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f1f3f4;
+      padding: 12px 18px;
+      font-weight: 600;
+      color: var(--text-main);
+      border-bottom: 1px solid #dadce0;
+    }
+
+    td {
+      padding: 14px 18px;
+      border-bottom: 1px solid #e8eaed;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8f9fa; }
+
+    .cert-badge-code {
+      font-family: monospace;
+      font-size: 13px;
+      background: #f1f3f4;
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .btn-view-cert {
+      color: var(--g-blue);
+      text-decoration: none;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      border-radius: var(--radius-s);
+      transition: background 0.2s;
+    }
+
+    .btn-view-cert:hover {
+      background: var(--g-blue-light);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+      background: #ffffff;
+      border-radius: var(--radius-l);
+      max-width: 520px;
+      width: 100%;
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: var(--text-sub);
+      cursor: pointer;
+    }
+
+    .verify-result {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: var(--radius-m);
+      display: none;
+    }
+
+    .verify-result.success {
+      display: block;
+      background: var(--g-green-light);
+      border: 1px solid rgba(30, 142, 62, 0.3);
+      color: #137333;
+    }
+
+    .verify-result.error {
+      display: block;
+      background: #fce8e6;
+      border: 1px solid rgba(217, 48, 37, 0.3);
+      color: var(--g-red);
+    }
+
+    footer {
+      background: #ffffff;
+      border-top: 1px solid #dadce0;
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 14px;
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background 3D Canvas -->
+  <canvas id="world-canvas"></canvas>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <a href="#" class="brand-logo">
+      <div class="google-dots">
+        <div class="dot dot-b"></div>
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+      </div>
+      Реєстр Сертифікатів
+    </a>
+    <div class="nav-actions">
+      <button class="btn-verify-nav" onclick="openVerifyModal()">
+        <span class="material-symbols-outlined" style="font-size: 18px;">verified</span>
+        Перевірити сертифікат
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Scroll World Container -->
+  <div class="scroll-container">
+
+    <!-- Hero Scene -->
+    <section class="scene-hero">
+      <div class="hero-badge">
+        <span class="material-symbols-outlined" style="font-size: 16px;">school</span>
+        Офіційна База Випускників та Кваліфікацій (Firebase Powered)
+      </div>
+      <h1 class="hero-title">
+        Інтерактивний <span>3D-Реєстр</span> Сертифікатів Підвищення Кваліфікації
+      </h1>
+      <p class="hero-subtitle">
+        Об'єднана та перевірена база даних про проходження курсів, стажувань та програм підвищення кваліфікації.
+      </p>
+      <div class="hero-buttons">
+        <a href="#registry" class="btn-primary">
+          <span class="material-symbols-outlined">search</span>
+          Перейти до реєстру
+        </a>
+        <button class="btn-outline" onclick="openVerifyModal()">
+          <span class="material-symbols-outlined">qr_code_scanner</span>
+          Перевірити код
+        </button>
+      </div>
+
+      <div class="scroll-hint">
+        <span>Прокрутіть вниз для огляду</span>
+        <span class="material-symbols-outlined">keyboard_arrow_down</span>
+      </div>
+    </section>
+
+    <!-- Stats Scene -->
+    <section class="scene-stats">
+      <div class="stats-card-grid">
+        <div class="stat-box-3d">
+          <div class="stat-number" id="stat-courses">0</div>
+          <div class="stat-label">Проведених курсів</div>
+        </div>
+        <div class="stat-box-3d">
+          <div class="stat-number" id="stat-certs" style="color: var(--g-green);">0</div>
+          <div class="stat-label">Виданих сертифікатів</div>
+        </div>
+        <div class="stat-box-3d">
+          <div class="stat-number" id="stat-hours" style="color: var(--g-yellow);">0</div>
+          <div class="stat-label">Академічних годин</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Registry Workspace Scene -->
+    <section class="scene-registry" id="registry">
+      <h2 class="section-title">Пошук у реєстрі курсів</h2>
+      <p class="section-desc">Оберіть потрібний рік, напрям або скористайтесь миттєвим пошуком за ПІБ чи номером сертифіката</p>
+
+      <div class="filter-card">
+        <div class="search-wrapper">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input type="text" id="search-input" class="search-input" placeholder="Введіть ПІБ учасника, код сертифіката чи назву курсу...">
+        </div>
+
+        <div class="filter-chips">
+          <span class="chip-label">Фільтрувати:</span>
+          <select id="filter-year" class="custom-select">
+            <option value="all">Усі роки</option>
+          </select>
+          <select id="filter-topic" class="custom-select">
+            <option value="all">Усі напрями</option>
+          </select>
+          <button id="btn-reset" class="btn-reset" style="display: none;" onclick="resetFilters()">
+            <span class="material-symbols-outlined" style="font-size: 16px;">restart_alt</span>
+            Скинути
+          </button>
+        </div>
+      </div>
+
+      <div id="courses-list" class="courses-grid">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Verification Modal -->
+  <div class="modal-overlay" id="verifyModal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeVerifyModal()">&times;</button>
+      <h3 style="font-family: var(--font-heading); font-size: 22px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined" style="color: var(--g-blue);">verified_user</span>
+        Перевірка справжності
+      </h3>
+      <p style="font-size: 14px; color: var(--text-sub); margin-bottom: 20px;">Введіть реєстраційний номер сертифіката для валідації в Firebase Firestore:</p>
+      
+      <div style="position: relative; margin-bottom: 16px;">
+        <input type="text" id="verifyCodeInput" class="search-input" placeholder="Наприклад: CERT-2026-001" style="padding-left: 20px;">
+      </div>
+      <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="runVerification()">
+        Перевірити документ
+      </button>
+
+      <div id="verifyResult" class="verify-result"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>© 2026 Офіційний реєстр сертифікатів підвищення кваліфікації (Firebase Cloud Firestore Integration).</p>
+    </div>
+  </footer>
+
+  <script>
+    // Local Fallback Sample Data
+    const LOCAL_FALLBACK_COURSES = [
+      {
+        id: "course-2026-1",
+        year: 2026,
+        topic: "Цифрові інструменти та ШІ",
+        title: "Штучний інтелект та цифрові інструменти в сучасній освіті",
+        hours: 30,
+        credits: 1,
+        period: "12 січня — 24 січня 2026",
+        orderNo: "Наказ № 14-К від 26.01.2026",
+        participants: [
+          { name: "Коваленко Олена Василівна", certCode: "CERT-2026-001", date: "26.01.2026", link: "https://drive.google.com" },
+          { name: "Петренко Ігор Володимирович", certCode: "CERT-2026-002", date: "26.01.2026", link: "https://drive.google.com" },
+          { name: "Шевченко Ганна Миколаївна", certCode: "CERT-2026-003", date: "26.01.2026", link: "https://drive.google.com" }
+        ]
+      },
+      {
+        id: "course-2025-2",
+        year: 2025,
+        topic: "Інформаційна безпека",
+        title: "Кібербезпека та гігієна в цифровому освітньому середовищі",
+        hours: 60,
+        credits: 2,
+        period: "10 листопада — 30 листопада 2025",
+        orderNo: "Наказ № 88-К від 01.12.2025",
+        participants: [
+          { name: "Сидоренко Михайло Олександрович", certCode: "CERT-2025-101", date: "01.12.2025", link: "https://drive.google.com" },
+          { name: "Ткаченко Ольга Сергіївна", certCode: "CERT-2025-102", date: "01.12.2025", link: "https://drive.google.com" }
+        ]
+      }
+    ];
+
+    let activeCourses = LOCAL_FALLBACK_COURSES;
+
+    /* 3D Canvas Background Animation */
+    const canvas = document.getElementById('world-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+
+    function resizeCanvas() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const particles = Array.from({ length: 35 }, () => ({
+      x: (Math.random() - 0.5) * 2000,
+      y: (Math.random() - 0.5) * 2000,
+      z: Math.random() * 2000,
+      size: 15 + Math.random() * 30,
+      color: ['rgba(26, 115, 232, ', 'rgba(30, 142, 62, ', 'rgba(249, 171, 0, ', 'rgba(217, 48, 37, '][Math.floor(Math.random()*4)]
+    }));
+
+    let currentScroll = 0;
+    function renderWorld() {
+      currentScroll += (window.scrollY - currentScroll) * 0.1;
+      ctx.clearRect(0, 0, width, height);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, '#f8f9fa');
+      grad.addColorStop(1, '#e8eaed');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      const fov = 400;
+      const speedOffset = currentScroll * 1.2;
+
+      particles.forEach(p => {
+        let relativeZ = (p.z - speedOffset) % 2000;
+        if (relativeZ < 10) relativeZ += 2000;
+
+        const scale = fov / (fov + relativeZ);
+        const x2d = width / 2 + p.x * scale;
+        const y2d = height / 2 + (p.y + currentScroll * 0.3) * scale;
+
+        if (x2d > -50 && x2d < width + 50 && y2d > -50 && y2d < height + 50) {
+          ctx.fillStyle = p.color + (0.15 + scale * 0.4) + ')';
+          ctx.beginPath();
+          ctx.roundRect(x2d, y2d, p.size * scale * 2, p.size * scale * 1.4, 8 * scale);
+          ctx.fill();
+        }
+      });
+      requestAnimationFrame(renderWorld);
+    }
+    renderWorld();
+
+    /* Registry App Logic */
+    const searchInput = document.getElementById('search-input');
+    const filterYear = document.getElementById('filter-year');
+    const filterTopic = document.getElementById('filter-topic');
+    const resetBtn = document.getElementById('btn-reset');
+    const coursesList = document.getElementById('courses-list');
+
+    async function loadData() {
+      if (window.FirebaseDB) {
+        try {
+          console.log("🔥 Отримання даних з Firebase Firestore...");
+          const { collection, getDocs } = window.FirebaseOps;
+          
+          const coursesSnap = await getDocs(collection(window.FirebaseDB, "courses"));
+          const certsSnap = await getDocs(collection(window.FirebaseDB, "certificates"));
+
+          const coursesMap = {};
+          coursesSnap.forEach(doc => {
+            coursesMap[doc.id] = { ...doc.data(), participants: [] };
+          });
+
+          certsSnap.forEach(doc => {
+            const cert = doc.data();
+            if (coursesMap[cert.courseId]) {
+              coursesMap[cert.courseId].participants.push({
+                name: cert.participantName,
+                certCode: cert.certCode,
+                date: cert.issueDate,
+                link: cert.driveUrl || '#'
+              });
+            }
+          });
+
+          activeCourses = Object.values(coursesMap);
+          console.log(`✅ Завантажено з Firebase: ${activeCourses.length} курсів`);
+        } catch (e) {
+          console.warn("⚠️ Не вдалося завантажити дані з Firebase, використовуємо резервні дані:", e);
+        }
+      }
+
+      initUI();
+    }
+
+    function initUI() {
+      // Calculate Stats
+      const totalCourses = activeCourses.length;
+      const totalCerts = activeCourses.reduce((a, c) => a + (c.participants ? c.participants.length : 0), 0);
+      const totalHours = activeCourses.reduce((a, c) => a + (c.hours || 0), 0);
+
+      document.getElementById('stat-courses').textContent = totalCourses;
+      document.getElementById('stat-certs').textContent = totalCerts;
+      document.getElementById('stat-hours').textContent = totalHours;
+
+      // Populate Selects
+      const years = [...new Set(activeCourses.map(c => c.year))].sort((a,b) => b-a);
+      const topics = [...new Set(activeCourses.map(c => c.topic))].sort();
+
+      filterYear.innerHTML = '<option value="all">Усі роки</option>';
+      filterTopic.innerHTML = '<option value="all">Усі напрями</option>';
+
+      years.forEach(y => filterYear.innerHTML += `<option value="${y}">${y} рік</option>`);
+      topics.forEach(t => filterTopic.innerHTML += `<option value="${t}">${t}</option>`);
+
+      renderCourses(activeCourses);
+
+      searchInput.addEventListener('input', filterData);
+      filterYear.addEventListener('change', filterData);
+      filterTopic.addEventListener('change', filterData);
+    }
+
+    function renderCourses(data, query = '') {
+      coursesList.innerHTML = '';
+
+      if (data.length === 0) {
+        coursesList.innerHTML = `
+          <div style="text-align: center; padding: 60px 20px; background: #fff; border-radius: var(--radius-l); border: 1px dashed #dadce0;">
+            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--text-sub);">search_off</span>
+            <h3 style="margin-top: 10px;">Нічого не знайдено</h3>
+            <p style="color: var(--text-sub);">Спробуйте змінити пошуковий запит чи скинути фільтри</p>
+          </div>
+        `;
+        return;
+      }
+
+      const qLower = query.toLowerCase().trim();
+
+      data.forEach(course => {
+        const matches = (course.participants || []).filter(p => 
+          !qLower || p.name.toLowerCase().includes(qLower) || p.certCode.toLowerCase().includes(qLower)
+        );
+
+        const card = document.createElement('div');
+        card.className = `course-card ${qLower ? 'active' : ''}`;
+
+        card.innerHTML = `
+          <div class="course-header" onclick="this.parentElement.classList.toggle('active')">
+            <div>
+              <div class="course-badges">
+                <span class="badge badge-year">${course.year} рік</span>
+                <span class="badge">${course.topic}</span>
+                <span class="badge badge-hours">${course.hours} год (${course.credits} ЄКТС)</span>
+              </div>
+              <div class="course-title">${course.title}</div>
+              <div class="course-details-meta">
+                <div class="meta-row"><span class="material-symbols-outlined" style="font-size: 16px;">date_range</span> ${course.period}</div>
+                <div class="meta-row"><span class="material-symbols-outlined" style="font-size: 16px;">description</span> ${course.orderNo}</div>
+                <div class="meta-row"><span class="material-symbols-outlined" style="font-size: 16px;">group</span> Учасників: ${course.participants ? course.participants.length : 0}</div>
+              </div>
+            </div>
+            <span class="material-symbols-outlined arrow-icon">expand_more</span>
+          </div>
+
+          <div class="course-body">
+            <div class="participants-table-box">
+              <table>
+                <thead>
+                  <tr>
+                    <th>№</th>
+                    <th>ПІБ Випускника</th>
+                    <th>Код сертифіката</th>
+                    <th>Дата видачі</th>
+                    <th style="text-align: right;">Сертифікат</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${matches.map((p, idx) => `
+                    <tr>
+                      <td>${idx + 1}</td>
+                      <td><strong>${highlight(p.name, qLower)}</strong></td>
+                      <td><span class="cert-badge-code">${highlight(p.certCode, qLower)}</span></td>
+                      <td>${p.date}</td>
+                      <td style="text-align: right;">
+                        <a href="${p.link}" target="_blank" class="btn-view-cert">
+                          <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                          Переглянути
+                        </a>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        coursesList.appendChild(card);
+      });
+    }
+
+    function filterData() {
+      const q = searchInput.value;
+      const year = filterYear.value;
+      const topic = filterTopic.value;
+
+      resetBtn.style.display = (q || year !== 'all' || topic !== 'all') ? 'inline-flex' : 'none';
+
+      const filtered = activeCourses.filter(c => {
+        const matchY = year === 'all' || c.year.toString() === year;
+        const matchT = topic === 'all' || c.topic === topic;
+        const matchQ = !q || c.title.toLowerCase().includes(q.toLowerCase()) ||
+          (c.participants || []).some(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.certCode.toLowerCase().includes(q.toLowerCase()));
+        return matchY && matchT && matchQ;
+      });
+
+      renderCourses(filtered, q);
+    }
+
+    function resetFilters() {
+      searchInput.value = '';
+      filterYear.value = 'all';
+      filterTopic.value = 'all';
+      filterData();
+    }
+
+    function highlight(text, q) {
+      if (!q) return text;
+      const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return text.replace(re, '<mark style="background:#fff0b3; padding:0 2px;">$1</mark>');
+    }
+
+    /* Verification Modal */
+    function openVerifyModal() { document.getElementById('verifyModal').classList.add('open'); }
+    function closeVerifyModal() {
+      document.getElementById('verifyModal').classList.remove('open');
+      document.getElementById('verifyResult').className = 'verify-result';
+    }
+    
+    async function runVerification() {
+      const code = document.getElementById('verifyCodeInput').value.trim();
+      const resEl = document.getElementById('verifyResult');
+      if (!code) return;
+
+      // Try Firebase direct lookup if connected
+      if (window.FirebaseDB) {
+        try {
+          const { doc, getDoc } = window.FirebaseOps;
+          const docRef = doc(window.FirebaseDB, "certificates", code);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            resEl.className = 'verify-result success';
+            resEl.innerHTML = `
+              <strong>✓ Сертифікат дійсний (Перевірено через Firebase)</strong><br>
+              <b>Випускник:</b> ${data.participantName}<br>
+              <b>Курс:</b> ${data.courseTitle}<br>
+              <b>Дата видачі:</b> ${data.issueDate}
+            `;
+            return;
+          }
+        } catch (e) {
+          console.warn("⚠️ Помилка перевірки через Firebase, перевіряємо в локальних даних:", e);
+        }
+      }
+
+      // Fallback local lookup
+      let found = null;
+      let foundCourse = null;
+      activeCourses.forEach(c => {
+        const p = (c.participants || []).find(part => part.certCode.toLowerCase() === code.toLowerCase());
+        if (p) { found = p; foundCourse = c; }
+      });
+
+      if (found) {
+        resEl.className = 'verify-result success';
+        resEl.innerHTML = `
+          <strong>✓ Сертифікат дійсний</strong><br>
+          <b>Випускник:</b> ${found.name}<br>
+          <b>Курс:</b> ${foundCourse.title}<br>
+          <b>Дата видачі:</b> ${found.date}
+        `;
+      } else {
+        resEl.className = 'verify-result error';
+        resEl.innerHTML = `
+          <strong>✗ Сертифікат не знайдено</strong><br>
+          Перевірте правильність введеного коду.
+        `;
+      }
+    }
+
+    setTimeout(loadData, 500);
+  </script>
+</body>
+</html>

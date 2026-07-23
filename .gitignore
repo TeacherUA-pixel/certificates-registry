@@ -1,0 +1,5 @@
+﻿node_modules/
+data/*.csv
+data/*.xlsx
+output/*.json
+scripts/serviceAccountKey.json
